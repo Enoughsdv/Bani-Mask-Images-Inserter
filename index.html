@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bani Mask Editor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <h1>Bani Mask Editor</h1>
+    <div class="container">
+        <div class="file-upload">
+            <label for="baniFile">Upload Bani File:</label>
+            <input type="file" id="baniFile" accept=".bani">
+        </div>
+
+        <div class="offsets-group">
+            <div>
+                <label for="downOffsetX">Down Offset X:</label>
+                <input type="number" id="downOffsetX" value="0">
+            </div>
+            <div>
+                <label for="downOffsetY">Down Offset Y:</label>
+                <input type="number" id="downOffsetY" value="-33">
+            </div>
+            <div>
+                <label for="upOffsetX">Up Offset X:</label>
+                <input type="number" id="upOffsetX" value="0">
+            </div>
+            <div>
+                <label for="upOffsetY">Up Offset Y:</label>
+                <input type="number" id="upOffsetY" value="-17">
+            </div>
+            <div>
+                <label for="rightOffsetX">Right Offset X:</label>
+                <input type="number" id="rightOffsetX" value="1">
+            </div>
+            <div>
+                <label for="rightOffsetY">Right Offset Y:</label>
+                <input type="number" id="rightOffsetY" value="-32">
+            </div>
+            <div>
+                <label for="leftOffsetX">Left Offset X:</label>
+                <input type="number" id="leftOffsetX" value="-1">
+            </div>
+            <div>
+                <label for="leftOffsetY">Left Offset Y:</label>
+                <input type="number" id="leftOffsetY" value="-32">
+            </div>
+        </div>
+
+        <button id="download">Download Updated Bani File</button>
+
+        <div class="info">
+            <p>After uploading your BANI file and adjusting the offsets, click the "Download Updated Bani File" button to get the modified file.</p>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
