@@ -5,19 +5,19 @@ let baniData = null;
 
 function handleBaniUpload(event) {
     const file = event.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            try {
-                baniData = parseJSON(e.target.result);
-                validateBaniFile(baniData);
-            } catch (error) {
-                console.error('Error parsing BANI file:', error);
-                alert('Error parsing BANI file: ' + error.message);
-            }
-        };
-        reader.readAsText(file);
-    }
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        try {
+            baniData = parseJSON(e.target.result);
+            validateBaniFile(baniData);
+        } catch (error) {
+            console.error('Error parsing BANI file:', error);
+            alert('Error parsing BANI file: ' + error.message);
+        }
+    };
+    reader.readAsText(file);
 }
 
 function parseJSON(jsonString) {
@@ -62,12 +62,9 @@ function downloadBaniFile() {
         baniData.defaults.MASK = 'bbuilder_enueanbumask.png';
     }
 
-    const initialFrameCount = Object.keys(baniData.sprites).length;
-    const sprites = createNewSprites(initialFrameCount);
+    const sprites = createMaskSprites();
 
-    updateFrames(sprites);
-
-    console.log(baniData.frames);
+    updateFramesWithMasks(sprites);
 
     const baniBlob = new Blob([JSON.stringify(baniData, null, 4)], { type: 'application/json' });
     const downloadLink = document.createElement('a');
@@ -76,60 +73,70 @@ function downloadBaniFile() {
     downloadLink.click();
 }
 
-function createNewSprites(initialFrameCount) {
-    const sprites = {
-        up: [],
-        left: [],
-        down: [],
-        right: []
-    };
-
-    const getNextAvailableKey = (existingKeys, startKey) => {
-        while (existingKeys.has(startKey.toString())) {
-            startKey++;
-        }
-        return startKey.toString();
-    };
-
-    const existingKeys = new Set(Object.keys(baniData.sprites));
-    let currentFrameKey = initialFrameCount;
-
+function createMaskSprites() {
     const directions = [
-        { name: 'down', bounds: [0, 0, 48, 72], offsetX: getOffset('down', 'X'), offsetY: getOffset('down', 'Y') },
-        { name: 'up', bounds: [48, 0, 48, 72], offsetX: getOffset('up', 'X'), offsetY: getOffset('up', 'Y') },
-        { name: 'right', bounds: [96, 0, 48, 72], offsetX: getOffset('right', 'X'), offsetY: getOffset('right', 'Y') },
-        { name: 'left', bounds: [96, 0, 48, 72], scale: [-1, 1], offsetX: getOffset('left', 'X'), offsetY: getOffset('left', 'Y') }
+        { name: 'down', bounds: [0, 0, 48, 72] },
+        { name: 'up', bounds: [48, 0, 48, 72] },
+        { name: 'right', bounds: [96, 0, 48, 72] },
+        { name: 'left', bounds: [96, 0, 48, 72], scale: [-1, 1] }
     ];
 
-    for (const { name, bounds, scale, offsetX, offsetY } of directions) {
-        const newFrameKey = getNextAvailableKey(existingKeys, currentFrameKey);
-        const frameData = {
-            bounds,
+    return directions.reduce((sprites, { name, bounds, scale }, index) => {
+        const key = (Object.keys(baniData.sprites).length + index).toString();
+        baniData.sprites[key] = {
             gfx: 'MASK',
+            bounds,
             ...(scale && { scale })
         };
-
-        baniData.sprites[newFrameKey] = frameData;
-        sprites[name].push(newFrameKey, offsetX, offsetY);
-
-        currentFrameKey = parseInt(newFrameKey, 10) + 1;
-        existingKeys.add(newFrameKey);
-    }
-
-    return sprites;
+        sprites[name] = key;
+        return sprites;
+    }, {});
 }
 
-function getOffset(direction, axis) {
-    const offsetInput = document.getElementById(`${direction}Offset${axis}`);
-    return parseInt(offsetInput.value, 10);
-}
+function updateFramesWithMasks(sprites) {
+    let headCoords = [];
 
-function updateFrames(sprites) {
-    for (const frame of baniData.frames) {
+    baniData.frames.forEach(frame => {
+        frame.directions = frame.directions || {};
         const [up, left, down, right] = frame.directions;
-        up.push(sprites.up);
-        left.push(sprites.left);
-        down.push(sprites.down);
-        right.push(sprites.right);
+
+        [down, up, left, right].forEach((direction, directionIndex) => {
+            direction.forEach(spriteData => {
+                const [spriteId, spriteX, spriteY] = spriteData;
+                const sprite = baniData.sprites[spriteId];
+
+                if (sprite?.gfx === "HEAD" && sprite.bounds[2] === 48 && sprite.bounds[3] === 48) {
+                    const headX = spriteX;
+                    const headY = spriteY;
+
+                    let maskX = headX, maskY = headY;
+                    if (directionIndex === 0) maskY -= 16;  // DOWN
+                    if (directionIndex === 1) maskY -= 10;  // UP
+                    if (directionIndex === 2) { maskX -= 1; maskY -= 15; }  // LEFT
+                    if (directionIndex === 3) { maskX += 1; maskY -= 15; }  // RIGHT
+
+                    if (!headCoords.some(coord => coord.id === spriteId && coord.direction === directionIndex)) {
+                        headCoords.push({ id: spriteId, headX, headY, maskX, maskY, direction: directionIndex });
+                    }
+                }
+            });
+        });
+    });
+
+    if (!headCoords.length) {
+        alert("No HEAD sprites with bounds 48x48 found.");
+        return;
     }
+
+    baniData.frames.forEach(frame => {
+        frame.directions = frame.directions || {};
+        const [up, left, down, right] = frame.directions;
+
+        headCoords.forEach(({ maskX, maskY, direction }) => {
+            if (direction === 0) down.push([sprites.down, maskX, maskY]);
+            if (direction === 1) up.push([sprites.up, maskX, maskY]);
+            if (direction === 2) left.push([sprites.left, maskX, maskY]);
+            if (direction === 3) right.push([sprites.right, maskX, maskY]);
+        });
+    });
 }
