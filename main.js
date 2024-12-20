@@ -5,19 +5,19 @@ let baniData = null;
 
 function handleBaniUpload(event) {
     const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function (e) {
-        try {
-            baniData = parseJSON(e.target.result);
-            validateBaniFile(baniData);
-        } catch (error) {
-            console.error('Error parsing BANI file:', error);
-            alert('Error parsing BANI file: ' + error.message);
-        }
-    };
-    reader.readAsText(file);
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            try {
+                baniData = parseJSON(e.target.result);
+                validateBaniFile(baniData);
+            } catch (error) {
+                console.error('Error parsing BANI file:', error);
+                alert('Error parsing BANI file: ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+    }
 }
 
 function parseJSON(jsonString) {
@@ -40,8 +40,6 @@ function validateBaniFile(data) {
     if (!data.sprites || typeof data.sprites !== 'object') {
         throw new Error('Missing or invalid sprites property.');
     }
-
-    console.log('BANI file validated successfully:', data);
 }
 
 function checkProperties(obj, properties, prefix = '') {
@@ -81,7 +79,9 @@ function createMaskSprites() {
         { name: 'left', bounds: [96, 0, 48, 72], scale: [-1, 1] }
     ];
 
-    return directions.reduce((sprites, { name, bounds, scale }, index) => {
+    const sprites = {};
+
+    directions.forEach(({ name, bounds, scale }, index) => {
         const key = (Object.keys(baniData.sprites).length + index).toString();
         baniData.sprites[key] = {
             gfx: 'MASK',
@@ -89,54 +89,73 @@ function createMaskSprites() {
             ...(scale && { scale })
         };
         sprites[name] = key;
-        return sprites;
-    }, {});
+    });
+
+    return sprites;
 }
 
 function updateFramesWithMasks(sprites) {
     let headCoords = [];
 
-    baniData.frames.forEach(frame => {
+    baniData.frames.forEach((frame) => {
         frame.directions = frame.directions || {};
         const [up, left, down, right] = frame.directions;
 
         [down, up, left, right].forEach((direction, directionIndex) => {
-            direction.forEach(spriteData => {
+            direction.forEach((spriteData) => {
                 const [spriteId, spriteX, spriteY] = spriteData;
-                const sprite = baniData.sprites[spriteId];
 
-                if (sprite?.gfx === "HEAD" && sprite.bounds[2] === 48 && sprite.bounds[3] === 48) {
+                const sprite = baniData.sprites[spriteId];
+                if (sprite?.gfx === "HEAD" && sprite.bounds && sprite.bounds[2] === 48 && sprite.bounds[3] === 48) {
                     const headX = spriteX;
                     const headY = spriteY;
 
-                    let maskX = headX, maskY = headY;
-                    if (directionIndex === 0) maskY -= 16;  // DOWN
-                    if (directionIndex === 1) maskY -= 10;  // UP
-                    if (directionIndex === 2) { maskX -= 1; maskY -= 15; }  // LEFT
-                    if (directionIndex === 3) { maskX += 1; maskY -= 15; }  // RIGHT
+                    let maskX = headX;
+                    let maskY = headY;
 
-                    if (!headCoords.some(coord => coord.id === spriteId && coord.direction === directionIndex)) {
-                        headCoords.push({ id: spriteId, headX, headY, maskX, maskY, direction: directionIndex });
+                    if (directionIndex === 0) { // DOWN
+                        maskY = headY - 16;
+                    } else if (directionIndex === 1) { // UP
+                        maskY = headY - 10;
+                    } else if (directionIndex === 2) { // LEFT
+                        maskX = headX - 1;
+                        maskY = headY - 15;
+                    } else if (directionIndex === 3) { // RIGHT
+                        maskX = headX + 1;
+                        maskY = headY - 15;
+                    }
+
+                    let existingCoord = headCoords.find(coord => coord.maskX === maskX && coord.maskY === maskY && coord.frame === frame);
+
+                    if (!existingCoord) {
+                        headCoords.push({ id: spriteId, maskX, maskY, direction: directionIndex, frame });
                     }
                 }
             });
         });
     });
 
-    if (!headCoords.length) {
+    if (headCoords.length === 0) {
         alert("No HEAD sprites with bounds 48x48 found.");
         return;
     }
 
-    baniData.frames.forEach(frame => {
+    baniData.frames.forEach((frame) => {
         frame.directions = frame.directions || {};
         const [up, left, down, right] = frame.directions;
 
-        headCoords.forEach(({ maskX, maskY, direction }) => {
-            if (direction === 0) down.push([sprites.down, maskX, maskY]);
-            if (direction === 1) up.push([sprites.up, maskX, maskY]);
-            if (direction === 2) left.push([sprites.left, maskX, maskY]);
-            if (direction === 3) right.push([sprites.right, maskX, maskY]);
+        headCoords.forEach(({ maskX, maskY, direction, frame: maskFrame }) => {
+            if (maskFrame === frame) {
+                if (direction === 0 && !down.some(item => item[1] === maskX && item[2] === maskY)) {
+                    down.push([sprites.down, maskX, maskY]);
+                } else if (direction === 1 && !up.some(item => item[1] === maskX && item[2] === maskY)) {
+                    up.push([sprites.up, maskX, maskY]);
+                } else if (direction === 2 && !left.some(item => item[1] === maskX && item[2] === maskY)) {
+                    left.push([sprites.left, maskX, maskY]);
+                } else if (direction === 3 && !right.some(item => item[1] === maskX && item[2] === maskY)) {
+                    right.push([sprites.right, maskX, maskY]);
+                }
+            }
         });
     });
 }
