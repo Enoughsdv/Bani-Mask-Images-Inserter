@@ -1,22 +1,27 @@
 document.getElementById('baniFile').addEventListener('change', handleBaniUpload);
 document.getElementById('download').addEventListener('click', downloadBaniFile);
 
-let baniData = null;
+let baniData = [];
+let filenames = [];
 
 function handleBaniUpload(event) {
-    const file = event.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            try {
-                baniData = parseJSON(e.target.result);
-                validateBaniFile(baniData);
-            } catch (error) {
-                console.error('Error parsing BANI file:', error);
-                alert('Error parsing BANI file: ' + error.message);
-            }
-        };
-        reader.readAsText(file);
+    const files = event.target.files;
+    if (files && files.length > 0) {
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const data = parseJSON(e.target.result);
+                    validateBaniFile(data);
+                    baniData.push(data);
+                    filenames.push(file.name);
+                } catch (error) {
+                    console.error('Error parsing BANI file:', error);
+                    alert('Error parsing BANI file: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        });
     }
 }
 
@@ -51,27 +56,35 @@ function checkProperties(obj, properties, prefix = '') {
 }
 
 function downloadBaniFile() {
-    if (!baniData) {
-        alert('No BANI file loaded.');
+    if (baniData.length === 0) {
+        alert('No BANI files loaded.');
         return;
     }
 
-    if (!baniData.defaults.MASK) {
-        baniData.defaults.MASK = 'bbuilder_enueanbumask.png';
-    }
+    const zip = new JSZip();
 
-    const sprites = createMaskSprites();
+    baniData.forEach((data, index) => {
+        if (!data.defaults.MASK) {
+            data.defaults.MASK = 'bbuilder_enueanbumask.png';
+        }
 
-    updateFramesWithMasks(sprites);
+        const sprites = createMaskSprites(data);
 
-    const baniBlob = new Blob([JSON.stringify(baniData, null, 4)], { type: 'application/json' });
-    const downloadLink = document.createElement('a');
-    downloadLink.href = URL.createObjectURL(baniBlob);
-    downloadLink.download = baniData.name.replace('.bani', '_updated.bani');
-    downloadLink.click();
+        updateFramesWithMasks(data, sprites);
+
+        const baniBlob = new Blob([JSON.stringify(data, null, 4)], { type: 'application/json' });
+        zip.file(filenames[index].replace('.bani', '_updated.bani'), baniBlob);
+    });
+
+    zip.generateAsync({ type: 'blob' }).then(function (content) {
+        const downloadLink = document.createElement('a');
+        downloadLink.href = URL.createObjectURL(content);
+        downloadLink.download = 'bani_files.zip';
+        downloadLink.click();
+    });
 }
 
-function createMaskSprites() {
+function createMaskSprites(data) {
     const directions = [
         { name: 'down', bounds: [0, 0, 48, 72] },
         { name: 'up', bounds: [48, 0, 48, 72] },
@@ -82,8 +95,8 @@ function createMaskSprites() {
     const sprites = {};
 
     directions.forEach(({ name, bounds, scale }, index) => {
-        const key = (Object.keys(baniData.sprites).length + index).toString();
-        baniData.sprites[key] = {
+        const key = (Object.keys(data.sprites).length + index).toString();
+        data.sprites[key] = {
             gfx: 'MASK',
             bounds,
             ...(scale && { scale })
@@ -94,10 +107,10 @@ function createMaskSprites() {
     return sprites;
 }
 
-function updateFramesWithMasks(sprites) {
+function updateFramesWithMasks(data, sprites) {
     let headCoords = [];
 
-    baniData.frames.forEach((frame) => {
+    data.frames.forEach((frame) => {
         frame.directions = frame.directions || {};
         const [up, left, down, right] = frame.directions;
 
@@ -105,7 +118,7 @@ function updateFramesWithMasks(sprites) {
             direction.forEach((spriteData) => {
                 const [spriteId, spriteX, spriteY] = spriteData;
 
-                const sprite = baniData.sprites[spriteId];
+                const sprite = data.sprites[spriteId];
                 if (sprite?.gfx === "HEAD" && sprite.bounds && sprite.bounds[2] === 48 && sprite.bounds[3] === 48) {
                     const headX = spriteX;
                     const headY = spriteY;
@@ -140,7 +153,7 @@ function updateFramesWithMasks(sprites) {
         return;
     }
 
-    baniData.frames.forEach((frame) => {
+    data.frames.forEach((frame) => {
         frame.directions = frame.directions || {};
         const [up, left, down, right] = frame.directions;
 
