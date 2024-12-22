@@ -68,6 +68,8 @@ function downloadBaniFile() {
             data.defaults.MASK = 'bbuilder_enueanbumask.png';
         }
 
+        data.online = 2; // Get the Etherion Server Files
+
         const sprites = createMaskSprites(data);
 
         updateFramesWithMasks(data, sprites);
